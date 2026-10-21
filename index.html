@@ -1,0 +1,294 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#100e20">
+  <title>نبضة | Nabda</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: radial-gradient(circle at top, #30234c, #100e20 65%);
+      color: #fff;
+      font-family: system-ui, sans-serif;
+    }
+
+    main {
+      width: 100%;
+      max-width: 390px;
+      text-align: center;
+    }
+
+    .logo {
+      font-size: 42px;
+      margin-bottom: 4px;
+    }
+
+    h1 {
+      font-size: 34px;
+      margin: 0;
+      letter-spacing: 2px;
+    }
+
+    .subtitle {
+      color: #c7bddc;
+      margin: 12px 0 28px;
+      line-height: 1.8;
+    }
+
+    .pulse-button {
+      width: 190px;
+      height: 190px;
+      border: 1px solid #d8aaff;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #edb8ff, #a34bdf 55%, #6426a8);
+      box-shadow: 0 0 35px #b45be966, 0 0 90px #883fd933;
+      color: white;
+      font-size: 60px;
+      cursor: pointer;
+      transition: transform .2s;
+      touch-action: manipulation;
+    }
+
+    .pulse-button:active {
+      transform: scale(.92);
+    }
+
+    .pulse-button:disabled {
+      opacity: .5;
+      cursor: wait;
+    }
+
+    .pulse-button.pulsing {
+      animation: pulse .65s ease-out;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 #e7b2ff99; }
+      100% { box-shadow: 0 0 0 35px #e7b2ff00; }
+    }
+
+    .panel {
+      margin-top: 30px;
+      padding: 18px;
+      border: 1px solid #ffffff20;
+      border-radius: 20px;
+      background: #ffffff09;
+      text-align: right;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 8px;
+      color: #e2d5f3;
+    }
+
+    input {
+      width: 100%;
+      padding: 13px;
+      margin-bottom: 12px;
+      border: 1px solid #ffffff30;
+      border-radius: 12px;
+      background: #171326;
+      color: white;
+      font: inherit;
+      direction: ltr;
+    }
+
+    .connect {
+      width: 100%;
+      padding: 13px;
+      border: 0;
+      border-radius: 12px;
+      background: #c28bea;
+      color: #1b1027;
+      font: inherit;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #status {
+      margin-top: 18px;
+      font-size: 14px;
+      color: #d8c7ee;
+      line-height: 1.8;
+      overflow-wrap: anywhere;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #b7a9cc;
+      line-height: 1.8;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <div class="logo">♡</div>
+    <h1>نبضة</h1>
+    <p class="subtitle">
+      أحيانًا تكفي إشارة صغيرة<br>
+      لتقول: أنا أتذكرك.
+    </p>
+
+    <button id="pulse" class="pulse-button"
+      aria-label="إرسال نبضة" disabled>♡</button>
+
+    <div class="panel">
+      <label for="room">رمز الربط المشترك بين الهاتفين</label>
+      <input id="room" maxlength="40"
+        placeholder="مثال: nabda-4827">
+
+      <button id="connect" class="connect">
+        الاتصال بنبضة
+      </button>
+
+      <p class="hint">
+        اختارا الرمز نفسه على الهاتفين. لا تستخدما معلومات شخصية.
+      </p>
+    </div>
+
+    <div id="status" role="status" aria-live="polite">
+      جهّز إعدادات الاتصال أولًا.
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // ضع بيانات مشروعك العامة هنا فقط.
+    const SUPABASE_URL = "ضع_رابط_مشروعك_هنا";
+    const SUPABASE_KEY = "ضع_المفتاح_العام_هنا";
+
+    const statusBox = document.getElementById("status");
+    const pulseButton = document.getElementById("pulse");
+    const connectButton = document.getElementById("connect");
+    const roomInput = document.getElementById("room");
+
+    let supabase = null;
+    let channel = null;
+    let ready = false;
+    let busy = false;
+
+    function showStatus(message) {
+      statusBox.textContent = message;
+    }
+
+    function animatePulse() {
+      pulseButton.classList.remove("pulsing");
+      void pulseButton.offsetWidth;
+      pulseButton.classList.add("pulsing");
+      setTimeout(() => {
+        pulseButton.classList.remove("pulsing");
+      }, 700);
+    }
+
+    connectButton.addEventListener("click", async () => {
+      const room = roomInput.value.trim();
+
+      if (
+        SUPABASE_URL.includes("ضع_") ||
+        SUPABASE_KEY.includes("ضع_")
+      ) {
+        showStatus("أضف رابط المشروع والمفتاح العام داخل الكود أولًا.");
+        return;
+      }
+
+      if (!/^[-a-zA-Z0-9_]{4,40}$/.test(room)) {
+        showStatus("اكتب رمزًا من 4 إلى 40 حرفًا أو رقمًا.");
+        return;
+      }
+
+      connectButton.disabled = true;
+      pulseButton.disabled = true;
+      ready = false;
+
+      if (channel) {
+        await supabase.removeChannel(channel);
+        channel = null;
+      }
+
+      try {
+        if (!supabase) {
+          supabase = window.supabase.createClient(
+            SUPABASE_URL,
+            SUPABASE_KEY
+          );
+        }
+
+        channel = supabase.channel("nabda-" + room, {
+          config: { broadcast: { self: false } }
+        });
+
+        channel.on("broadcast", { event: "pulse" }, ({ payload }) => {
+          if (!payload || !payload.sentAt) return;
+
+          animatePulse();
+
+          if ("vibrate" in navigator) {
+            navigator.vibrate([120, 60, 120]);
+          }
+
+          showStatus("وصلتك نبضة ❤️");
+        });
+
+        channel.subscribe((state, err) => {
+          if (state === "SUBSCRIBED") {
+            ready = true;
+            pulseButton.disabled = false;
+            connectButton.disabled = false;
+            showStatus("أنت متصل! افتحي التطبيق على الهاتف الآخر واستخدمي الرمز نفسه.");
+          } else if (state === "CHANNEL_ERROR" ||
+                     state === "TIMED_OUT") {
+            ready = false;
+            pulseButton.disabled = true;
+            connectButton.disabled = false;
+            showStatus("تعذر الاتصال. تحققي من إعدادات المشروع والإنترنت ثم حاولي مجددًا.");
+          } else if (err) {
+            showStatus("حدث خطأ في الاتصال. حاولي مجددًا.");
+          }
+        });
+      } catch (error) {
+        connectButton.disabled = false;
+        showStatus("حدث خطأ أثناء بدء الاتصال. تحققي من البيانات.");
+      }
+    });
+
+    pulseButton.addEventListener("click", async () => {
+      if (!ready || !channel || busy) return;
+
+      busy = true;
+      pulseButton.disabled = true;
+
+      try {
+        const result = await channel.send({
+          type: "broadcast",
+          event: "pulse",
+          payload: { sentAt: Date.now() }
+        });
+
+        if (result === "ok") {
+          animatePulse();
+          showStatus("أرسلت نبضة ❤️");
+        } else {
+          showStatus("لم نتأكد من إرسال النبضة. حاولي مجددًا.");
+        }
+      } catch (error) {
+        showStatus("تعذر إرسال النبضة. تحققي من الاتصال.");
+      } finally {
+        busy = false;
+        pulseButton.disabled = !ready;
+      }
+    });
+  </script>
+</body>
+</html>
